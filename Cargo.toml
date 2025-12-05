@@ -1,0 +1,12 @@
+[package]
+name = "async-join"
+version = "0.1.0"
+edition = "2024"
+authors = ["Jiangfeng Huang <paraworker@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/Paraworker/async-join"
+description = "Abstraction for joining and aborting async tasks"
+
+[dependencies]
+futures = "0.3.31"
