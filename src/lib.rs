@@ -8,9 +8,9 @@ use std::{
 
 use futures::{
     FutureExt,
-    channel::oneshot::{self, Receiver, Sender},
     stream::{AbortHandle, AbortRegistration, Abortable},
 };
+use mea::oneshot::{self, Receiver, Recv, Sender};
 
 /// Error returned by a [`JoinHandle`].
 pub enum JoinError {
@@ -45,10 +45,10 @@ pub type JoinResult<T> = Result<T, JoinError>;
 
 /// Handle to a joinable task.
 ///
-/// Awaiting the `JoinHandle` waits for the task to complete and returns its result.
+/// Awaiting the `JoinHandle` waits for the associated task to produce a result.
 ///
-/// Dropping the `JoinHandle` detaches the task. The executor may continue to
-/// poll the task to completion, but its result will be ignored.
+/// Dropping the `JoinHandle` detaches the associated task. The executor may continue
+/// to poll the task to completion, but its result will be ignored.
 pub struct JoinHandle<T> {
     /// Handle to abort the task.
     abort: AbortHandle,
@@ -61,9 +61,44 @@ impl<T> JoinHandle<T> {
     pub fn abort(&self) {
         self.abort.abort();
     }
+
+    /// Returns `true` if the associated task has finished.
+    ///
+    /// This means awaiting the `JoinHandle` will complete immediately.
+    pub fn is_finished(&self) -> bool {
+        self.rx.is_closed() || self.rx.has_message()
+    }
 }
 
-impl<T> Future for JoinHandle<T> {
+impl<T> IntoFuture for JoinHandle<T> {
+    type Output = JoinResult<T>;
+
+    type IntoFuture = Join<T>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Join {
+            rx: self.rx.into_future(),
+        }
+    }
+}
+
+impl<T> fmt::Debug for JoinHandle<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JoinHandle")
+            .field("abort", &self.abort)
+            .field("rx", &self.rx)
+            .finish()
+    }
+}
+
+/// A future that completes when the associated task produces a result.
+///
+/// Dropping this future detaches the associated task, same as [`JoinHandle`].
+pub struct Join<T> {
+    rx: Recv<JoinResult<T>>,
+}
+
+impl<T> Future for Join<T> {
     type Output = JoinResult<T>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -82,12 +117,9 @@ impl<T> Future for JoinHandle<T> {
     }
 }
 
-impl<T> fmt::Debug for JoinHandle<T> {
+impl<T> fmt::Debug for Join<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("JoinHandle")
-            .field("abort", &self.abort)
-            .field("rx", &self.rx)
-            .finish()
+        f.debug_struct("Join").field("rx", &self.rx).finish()
     }
 }
 
