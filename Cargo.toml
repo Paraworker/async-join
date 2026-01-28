@@ -10,4 +10,4 @@ description = "Abstraction for joining and aborting async tasks"
 
 [dependencies]
 futures = "0.3.31"
-mea = "0.6.0"
+mea = "0.6.3"
